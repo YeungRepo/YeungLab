@@ -1,13 +1,7 @@
 import time
 import numpy as np
-from scipy.integrate import odeint
-import random
-import torch._C as torch 
-from torch import nn as nn
-from scipy.linalg import logm, expm
-from scipy.integrate import odeint
-import numpy as np
-import matplotlib
+from torch import nn
+import torch#._C as torch 
 
 class Feedforward(nn.Module):
     """
@@ -37,14 +31,14 @@ class feedforward_DDMD_no_input(nn.Module):
     """
     def __init__(self, n_layers, layer_width, dim_y, dim_added_y):
         nn.Module.__init__(self)
-        self.feedforward_y = Feedforward(n_layers, layer_width, dim_y, dim_added_y)
-        self.linear_y = nn.Linear(dim_y + dim_added_y, dim_y + dim_added_y, bias=False)
+        self.feedforward_y = Feedforward(n_layers, layer_width, dim_y, dim_added_y - dim_y)
+        self.Koopman = nn.Linear(dim_y + dim_added_y, dim_y + dim_added_y, bias=False)
         self.dimState = dim_y + dim_added_y
         self.dim_y = dim_y
     
     def forward(self, y):
         sai_y = self.lift(y)
-        y_next_approx = self.linear_y(sai_y)
+        y_next_approx = self.Koopman(sai_y)
         return y_next_approx
     
     def lift(self, y):
@@ -53,12 +47,12 @@ class feedforward_DDMD_no_input(nn.Module):
         return sai_y
     
     def koopmanOperate(self, sai_y):
-        sai_y2y = self.linear_y(sai_y)
+        sai_y2y = self.Koopman(sai_y)
         return sai_y2y
     
     def getKoopmanOperator(self):
         Kyy = np.zeros([self.dimState, self.dimState])
-        for param in self.linear_y.parameters(): # There is just one parameter, the Matrix of weights
+        for param in self.Koopman.parameters(): # There is just one parameter, the Matrix of weights
             Kyy[:] = param[:].detach().numpy()
         return Kyy
         

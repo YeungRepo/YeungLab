@@ -2,14 +2,89 @@ import time
 import numpy as np
 from scipy.integrate import odeint
 import random
-import torch._C as torch 
-from torch import nn as nn
+from torch import nn
+import torch#._C as torch 
 from scipy.linalg import logm, expm
 from scipy.integrate import odeint
-import numpy as np
 import matplotlib
 
-# Support classes
+
+class rbf(nn.Module):
+    """ a radial basis function
+    """
+    def __init__(self, dim):
+        super(rbf, self).__init__()
+        self.dim = dim
+        self.centers = nn.parameter.Parameter(torch.ones(dim))
+        self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
+        nn.init.uniform_(self.centers, 0, 10)
+        nn.init.uniform_(self.steepnesses, 0, 10)
+        
+    def forward(self, x):
+        pre_exponent = torch.sub(x, self.centers) # all these opperations are pointwise
+        exponent = torch.mul(self.steepnesses, pre_exponent) 
+        pre_pre_den = torch.exp(exponent) 
+        pre_den = torch.ones(self.dim) + pre_pre_den 
+        den = torch.mul(pre_den, pre_den)
+        num = pre_pre_den
+        individuals = torch.div(num, den) 
+        total_sum = torch.sum(individuals, axis=1)
+        return total_sum
+    
+    def get_centers(self):
+        return self.centers.detach().numpy()
+    
+    def get_steepnesses(self):
+        return self.steepnesses.detach().numpy()
+    
+    
+class RBF_Dict(nn.Module):
+    def __init__(self, dim, numRBF):
+        """
+        The polyoid dictionary is biased, state inclusive, and has polyoid basis elements.
+        The variables, powers and numOfEachPower are lists of the same length. Powers has the powers for the polyoids, 
+           numOfEachPower has the integer number of each of the polyoids to be included in the dictionary.
+        """
+        super(RBF_Dict, self).__init__()
+        self.dim = dim
+        self.numRBF = numRBF
+        self.RBFs = nn.ModuleList([rbf(dim) for i in range(numRBF)])
+        self.koopDim = 1 + dim + numRBF
+        self.Koopman = nn.Linear(self.koopDim, self.koopDim, bias=False)
+        nn.init.kaiming_normal_(self.Koopman.weight)
+        
+    def lift(self, x): 
+        rbfs = torch.zeros([self.numRBF, len(x)])
+        for i in range(self.numRBF):
+            rbfs[i] = self.RBFs[i](x)
+        x = torch.cat([torch.ones(1, len(x)), x.transpose(0, 1), rbfs], dim=0) 
+        x = x.transpose(0, 1)
+        return x
+        
+    def forward(self, x):
+        x = self.lift(x)
+        x = self.Koopman(x)
+        return x
+    
+    def getKoopmanOperator(self):
+        K = np.zeros([self.dim, self.koopDim])
+        for param in self.Koopman.parameters(): #There is just one parameter, it's the Matrix of weights
+            K[:] = param[:].detach().numpy()
+        return K
+    
+    def getRbfCenters(self):
+        centers = []
+        for rbf in self.RBFs:
+            centers.append(rbf.get_centers())
+        return centers
+    
+    def getRbfSteepnesses(self):
+        centers = []
+        for rbf in self.RBFs:
+            centers.append(rbf.get_steepnesses())
+        return centers
+
+
 class shiftedPolyoid(nn.Module):
     """ a polyoid is a function, p, of the form:
     p(x) = sum([steepness[i](x[i] - center[i])**power for i in range(len(x))]), where x is the a vector.
@@ -20,8 +95,8 @@ class shiftedPolyoid(nn.Module):
         super(shiftedPolyoid, self).__init__()
         self.dim = dim
         self.power = power
-        self.centers = torch.nn.parameter.Parameter(torch.ones(dim))
-        self.steepnesses = torch.nn.parameter.Parameter(torch.ones(dim))
+        self.centers = nn.parameter.Parameter(torch.ones(dim))
+        self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
         nn.init.uniform_(self.centers, 0, 10)
         nn.init.uniform_(self.steepnesses, 0, 10)
         
@@ -94,8 +169,8 @@ class conjLog(nn.Module):
     def __init__(self, dim):
         super(conjLog, self).__init__()
         self.dim = dim
-        self.centers = torch.nn.parameter.Parameter(torch.ones(dim))
-        self.steepnesses = torch.nn.parameter.Parameter(torch.ones(dim))
+        self.centers = nn.parameter.Parameter(torch.ones(dim))
+        self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
         nn.init.uniform_(self.centers, 0, 10)
         nn.init.uniform_(self.steepnesses, 0, 10)
         
@@ -119,8 +194,8 @@ class conjRBF(nn.Module):
     def __init__(self, dim):
         super(conjRBF, self).__init__()
         self.dim = dim
-        self.centers = torch.nn.parameter.Parameter(torch.ones(dim))
-        self.steepnesses = torch.nn.parameter.Parameter(torch.ones(dim))
+        self.centers = nn.parameter.Parameter(torch.ones(dim))
+        self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
         nn.init.uniform_(self.centers, 0, 10)
         nn.init.uniform_(self.steepnesses, 0, 10)
         

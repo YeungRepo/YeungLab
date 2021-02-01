@@ -3,14 +3,14 @@ import pandas as pd
 import numpy as np
 from scipy.integrate import odeint
 import random
-import torch._C as torch 
+import torch#._C as torch 
 from torch import nn as nn
 from scipy.linalg import logm, expm
 from scipy.integrate import odeint
 import numpy as np
 import matplotlib
 from pytorchDeepDMD_Models import feedforward_DDMD_no_input
-from pytorchDictionaryModels import SILL, AugSILL, polyoidDict
+from pytorchDictionaryModels import SILL, AugSILL, RBF_Dict
 
 
 # Support functions.
@@ -86,9 +86,9 @@ def runEpochs(n_epochs, train_data, verify1_data, verify2_data, verify5_data, mi
         if epoch % samplerate == 0:
             end = time.time()
             times.append(end - start)
-            train_errors1.append(error)
-            train_errors2.append(error2)
-            train_errors5.append(error5)
+            train_errors1.append(error.item())
+            train_errors2.append(error2.item())
+            train_errors5.append(error5.item())
             koop_net.eval()
             with torch.no_grad():
                 # Do evaluation
@@ -103,15 +103,15 @@ def runEpochs(n_epochs, train_data, verify1_data, verify2_data, verify5_data, mi
                 liftedAftr = koop_net.lift(next_datapoint)
                 koop_approx = koop_net(datapoint)
                 error1 = loss_val(koop_approx, liftedAftr)
-                test_errors1.append(error1)
+                test_errors1.append(error1.item())
                 liftedAftr = koop_net.lift(next2_datapoint)
                 koop_approx = koop_net.Koopman(koop_approx)
                 error2 = loss_val(koop_approx, liftedAftr)
-                test_errors2.append(error2)
+                test_errors2.append(error2.item())
                 liftedAftr = koop_net.lift(next5_datapoint)
                 koop_approx = koop_net.Koopman(koop_net.Koopman(koop_net.Koopman(koop_approx)))
                 error5 = loss_val(koop_approx, liftedAftr)
-                test_errors5.append(error5)
+                test_errors5.append(error5.item())
     return koop_net, train_errors1, train_errors2, train_errors5, test_errors1, test_errors2, test_errors5, times
 
 def getPowersAndNumbers(dim, added_dim):
@@ -130,7 +130,7 @@ def getPowersAndNumbers(dim, added_dim):
 
 def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data, test_verify1_data,
              test_verify2_data, test_verify5_data, 
-             n_epochs = 200000,
+             n_epochs=200000,
              dim=7,
              dim_added=20,
              n_layers=7, 
@@ -140,6 +140,8 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
     """ 
     Function to do deepDMD to learn our data.
     """
+    # Try this line below and see if it messes anything up...
+    _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     loss = nn.MSELoss()
     loss_val = nn.MSELoss()
     koop_net = feedforward_DDMD_no_input(n_layers, layer_width, dim, dim_added)
@@ -157,13 +159,13 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
 # Function to train the neural network.
 def trainSGD(train_data, verify1_data, verify2_data, verify5_data, test_data, test_verify1_data,
              test_verify2_data, test_verify5_data, 
-            n_epochs = 3500,
+            n_epochs = 40000,
             dim=2,
             added_logs=2,
             added_rbfs= 2,
             added_dim = 4,
-            minibatch_size=100,
-            samplerate=250):
+            minibatch_size=30,
+            samplerate=50):
     """
     Function to learn our parameters and test them via some variation on SGD.
     @returns: the values koop_net, train_errors1, train_errors2, train_errors5, 
@@ -175,9 +177,8 @@ def trainSGD(train_data, verify1_data, verify2_data, verify5_data, test_data, te
         # use the regular SILL basis
         koop_net = SILL(dim, added_logs)
     elif added_rbfs < 1 and added_logs < 1:
-        # use polyoids for dictionary elements
-        powers, numOfEachPower = getPowersAndNumbers(dim, added_dim)
-        koop_net = polyoidDict(dim, powers, numOfEachPower)
+        # use RBFs for dictionary elements
+        koop_net = RBF_Dict(dim, added_dim)
     else:
         # use the augmented SILL basis
         koop_net = AugSILL(dim, added_logs, added_rbfs)
@@ -435,11 +436,75 @@ def expanded_matching_persuit(error, K, lifting_points, datapoints, niters):
     return indicies
 
 
+# A function to train and test deepDMD with a feedforward neural network.
+def train_and_test_FFdeepDMD(training_data, testing_data, dimK):
+    """
+    @param training_data: a 3d array of floats, the training system trajectories. 
+        The first dimension has all the separate trajectories.
+    @param testing_data: a 3d array of floats, the testing system trajectories. 
+        The first dimension has all the separate trajectories.
+    @param dimK: int, the dimension of the final Koopman operator.
+    @returns: time taken, error norm for 1-step predictions on the training data, and
+        error norm for 1-step predictions on the training data.
+    """
+    # Get data in the needed format
+    train, train_verify1, train_verify2, train_verify5 = format_data(training_data)
+    test, test_verify1, test_verify2, test_verify5 = format_data(testing_data)
+    n, _m = np.shape(train)
+    # run the training with the correct parameters and
+    # run the testing as we train
+    _koop_net, trainE1, trainE2, trainE5, testE1, testE2, testE5, times = trainFFDDMD(train, train_verify1, 
+            train_verify2, train_verify5, test, test_verify1, test_verify2, test_verify5, 
+             n_epochs = 200000,
+             dim=n,
+             dim_added=dimK - n,
+             n_layers=7, 
+             layer_width=20,
+             minibatch_size=30,
+             samplerate=250)
+    # Grab the parameters for the centers and steepnesses from the network, so we can pass them in to 
+    # the matching pursuit algorithm
+    return [times, trainE1, trainE2, trainE5, testE1, testE2, testE5]
+
 # We need a function to train and test SGD, 
 # Its inputs should be training data, testing data, and dimension of the final operator
 # it should return time taken, error norm for 1-step predictions.
 
-def train_and_test_SGD(training_data, testing_data, dimK):
+def train_and_test_SGD(training_data, testing_data, dimK, dict="AugSILL"):
+    """
+    @param training_data: a 3d array of floats, the training system trajectories. 
+        The first dimension has all the separate trajectories.
+    @param testing_data: a 3d array of floats, the testing system trajectories. 
+        The first dimension has all the separate trajectories.
+    @param dimK: int, the dimension of the final Koopman operator.
+    @returns: time taken, error norm for 1-step predictions on the training data, and
+        error norm for 1-step predictions on the training data.
+    """
+    # Get data in the needed format
+    train, train_verify1, train_verify2, train_verify5 = format_data(training_data)
+    test, test_verify1, test_verify2, test_verify5 = format_data(testing_data)
+    n, _m = np.shape(train)
+    dim_added = dimK - n - 1
+    if dict=="AugSILL":
+        if dim_added % 2 == 0:
+            n_logs, n_rbfs = dim_added // 2, dim_added // 2
+        else:
+            n_logs, n_rbfs = dim_added // 2 + 1, dim_added // 2
+    if dict=="SILL":
+        n_logs, n_rbfs = dim_added, 0
+    if dict=="Other":
+        n_logs, n_rbfs = 0, 0
+    # run the training with the correct parameters and
+    # run the testing as we train
+    _koop_net, trainE1, trainE2, trainE5, testE1, testE2, testE5, times = trainSGD(train, train_verify1, train_verify2, 
+                                                 train_verify5, test, test_verify1, test_verify2, test_verify5,
+                                                 dim=n, added_logs=n_logs, added_rbfs=n_rbfs, added_dim=dim_added)
+    # Grab the parameters for the centers and steepnesses from the network, so we can pass them in to 
+    # the matching pursuit algorithm
+    return [times, trainE1, trainE2, trainE5, testE1, testE2, testE5]
+
+
+def train_and_test_SGD_old(training_data, testing_data, dimK):
     """
     @param training_data: a 3d array of floats, the training system trajectories. 
         The first dimension has all the separate trajectories.
@@ -465,13 +530,15 @@ def train_and_test_SGD(training_data, testing_data, dimK):
                                                  dim=n, added_logs=n_logs, added_rbfs=n_rbfs)
     # Grab the parameters for the centers and steepnesses from the network, so we can pass them in to 
     # the matching pursuit algorithm
-    logCenters = koop_net.getLogCenters()
-    logSteeps = koop_net.getLogSteepnesses()
-    rbfCenters = koop_net.getRbfCenters()
-    rbfSteeps = koop_net.getRbfSteepnesses()
-    # return the time taken, train error and test error.
-    return [times, trainE1, trainE2, trainE5, testE1, testE2, testE5, logCenters, logSteeps, 
-            rbfCenters, rbfSteeps]
+    try: # This is to grab the centers and steepnesses when desired to pass in to Matching Pursuit for a specific test.
+        logCenters = koop_net.getLogCenters()
+        logSteeps = koop_net.getLogSteepnesses()
+        rbfCenters = koop_net.getRbfCenters()
+        rbfSteeps = koop_net.getRbfSteepnesses()
+        return [times[-1], trainE1[-1], trainE2[-1], trainE5[-1], testE1[-1], testE2[-1], testE5[-1], logCenters, logSteeps, 
+                rbfCenters, rbfSteeps]
+    except AttributeError:
+        return [times[-1], trainE1[-1], trainE2[-1], trainE5[-1], testE1[-1], testE2[-1], testE5[-1]]
 
 
 # We need a function to train and test Matching Pursuit, 
@@ -580,37 +647,58 @@ def train_and_test_MP_full(training_data, testing_data, steep_vals, pos_vals, di
 
 
 # Getting our initial data via numerical simulation
-def simulate(system, y0, tyme):
+def simulate(system, y0, times):
     """ Runs a system simulation.
     @param system: function of an array of floats, a function that takes in the state and 
         returns a new state (some unforced dynamic system).
     @param y0: array of floats, the starting state for our simulation.
-    @param tyme: int, the number of timesteps to run the simulation for.
+    @param times: array of floats, the timesteps to run the simulation for.
     @returns: a 2d array of floats, the system trajectory from y_0 to y_time.
     """
-    times = [i for i in range(tyme)]
     out = odeint(system, y0, times)
     return out.transpose()
 
-
-def train_test_data(sys, timeframe = 15, train_lims=[0, .5], test_lims=[0, 1]):
+def train_test_data_flexDim(sys, dim, nTrain=10, nTest=5, timeframe=5, 
+                                                timesteps=101, 
+                                                train_lims=[0, .5], 
+                                                test_lims=[0, 1]):
     """
-    Generates train and test data for a system
+    Generates train and test data for a system.
+    """
+    datas = []
+    for _i in range(nTrain):
+        ic = np.zeros(dim)
+        for j in range(dim):
+            ic[j] = np.random.uniform(train_lims[0], train_lims[1])
+        datas.append(simulate(sys, ic, np.linspace(0, timeframe, timesteps)))
+    train_data = np.array(datas)
+    datas = []
+    for _i in range(nTest):
+        ic = np.zeros(dim)
+        for j in range(dim):
+            ic[j] = np.random.uniform(test_lims[0], test_lims[1])
+        datas.append(simulate(sys, ic, np.linspace(0, timeframe, timesteps)))
+    test_data = np.array(datas)
+    return train_data, test_data
+
+def train_test_data(sys, timeframe=15, timesteps=101, train_lims=[0, .5], test_lims=[0, 1]):
+    """
+    Generates train and test data for a system.
+    This only works for a 2D system.
     """
     datas = []
     for _i in range(100):
         ic = np.zeros(2)
         ic[0] = np.random.uniform(train_lims[0], train_lims[1])
         ic[1] = np.random.uniform(train_lims[0], train_lims[1])
-        #print(ic)
-        datas.append(simulate(sys, ic, timeframe))
+        datas.append(simulate(sys, ic, np.linspace(0, timeframe, timesteps)))
     train_data = np.array(datas)
     datas = []
     for _i in range(50):
         ic = np.zeros(2)
         ic[0] = np.random.uniform(test_lims[0], test_lims[1])
         ic[1] = np.random.uniform(test_lims[0], test_lims[1])
-        datas.append(simulate(sys, ic, timeframe))
+        datas.append(simulate(sys, ic, np.linspace(0, timeframe, timesteps)))
     test_data = np.array(datas)
     return train_data, test_data
 
