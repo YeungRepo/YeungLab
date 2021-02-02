@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-import seaborn as sns 
 
 # Helper functions:
 def str2list(myString):
@@ -14,7 +13,7 @@ def str2list(myString):
     numList = [float(num) for num in myList]
     return numList
 
-results = pd.read_csv("AllSysAllDicSGD_Feb2021.csv") 
+results = pd.read_csv("AugSILL_SGDvsDDMD_Jan2021.csv") 
 
 # Separate by type
 Metrics = list(results.columns)[-7:]
@@ -44,9 +43,15 @@ for metric in Metrics:
             means = np.mean(dataBloc, axis=0)
             sds = np.std(dataBloc, axis=0)
             # Build the plot of score vs error with error bars
-            epochs = [50*i for i in range(len(means))]
+            if alg == "SGD with AugSILL":
+                epochs = [50*i for i in range(len(means))]
+            elif alg == "deepDMD":
+                epochs = [250*i for i in range(len(means))]
+            else:
+                print("WARNING: Unexpected Algorithm!")
+                epochs = [i for i in range(len(means))]
             plt.errorbar(epochs, means, yerr=sds, label="sys={0}, alg={1}".format(sys, alg))
         plt.legend()
         plt.title("Training Epoch vs {0}".format(metric))
-        fig.savefig("Plots/SGD_Metric={0}.jpg".format(metric))
+        fig.savefig("Plots/GlycoldDMD_vsSGD_Metric={0}.jpg".format(metric))
 
