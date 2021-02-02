@@ -130,7 +130,7 @@ def getPowersAndNumbers(dim, added_dim):
 
 def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data, test_verify1_data,
              test_verify2_data, test_verify5_data, 
-             n_epochs=200000,
+             n_epochs=25000,
              dim=7,
              dim_added=20,
              n_layers=7, 
@@ -159,7 +159,7 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
 # Function to train the neural network.
 def trainSGD(train_data, verify1_data, verify2_data, verify5_data, test_data, test_verify1_data,
              test_verify2_data, test_verify5_data, 
-            n_epochs = 40000,
+            n_epochs = 5000,
             dim=2,
             added_logs=2,
             added_rbfs= 2,
@@ -455,7 +455,7 @@ def train_and_test_FFdeepDMD(training_data, testing_data, dimK):
     # run the testing as we train
     _koop_net, trainE1, trainE2, trainE5, testE1, testE2, testE5, times = trainFFDDMD(train, train_verify1, 
             train_verify2, train_verify5, test, test_verify1, test_verify2, test_verify5, 
-             n_epochs = 200000,
+             n_epochs = 25000,
              dim=n,
              dim_added=dimK - n,
              n_layers=7, 
@@ -596,8 +596,6 @@ def train_and_test_MP_simple(training_data, testing_data, steep_vals, pos_vals, 
     return [end - start, train_error1, train_error2, train_error5, test_error1, test_error2, test_error5,
             len(basis_elements)]
     
-    
-
 
 # We need a function to train and test Matching Pursuit, 
 # Its inputs should be training data, testing data, steepness vals, position vals, and dimension of the final operator

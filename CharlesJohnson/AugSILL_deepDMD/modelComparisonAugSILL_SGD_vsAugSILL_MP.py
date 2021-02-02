@@ -34,7 +34,6 @@ system_centers = [vdp_centers, togg_centers, lv_centers, duff_centers]
 
 results_df = pd.DataFrame(columns=["System", "Algorithm", "Random Seed", "Kdim", "Time", "Train Error1", "Train Error2", "Train Error5", 
                                    "Test Error1", "Test Error2", "Test Error5", "Num Basis Elements"])
-# Update the run below to get 2 step and 5 step train and test error.
 for sys_ind in range(4): 
     print("sys_ind", sys_ind)
     for Kdim in [5, 10, 20]:

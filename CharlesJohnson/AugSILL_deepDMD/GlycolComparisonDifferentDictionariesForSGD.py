@@ -1,7 +1,7 @@
 import numpy as np
 from dynamicSystems import glycol_oscillator
 import pandas as pd
-from modelComparisonHelperFunctions import train_test_data_flexDim, train_and_test_SGD, train_and_test_FFdeepDMD
+from modelComparisonHelperFunctions import train_test_data_flexDim, train_and_test_SGD
 
 
 system_name = "glycolic oscillator"
