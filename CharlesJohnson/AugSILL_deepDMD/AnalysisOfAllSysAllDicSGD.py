@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-import seaborn as sns 
+
 
 # Helper functions:
 def str2list(myString):
@@ -14,11 +14,18 @@ def str2list(myString):
     numList = [float(num) for num in myList]
     return numList
 
-results = pd.read_csv("AllSysAllDicSGD_Feb2021.csv") 
+results_most = pd.read_csv("AllSysAllDicSGD_Feb2021.csv") 
+results_hermite = pd.read_csv("HermiteSGD_Feb2021.csv")
+# switch out a column name tht I did wrong.
+results_hermite["Algorithm"] = ["SGD with Hermite Polynomials"] * len(results_hermite["Algorithm"])
+
+# Put the results together
+results = pd.concat([results_most, results_hermite])
 
 # Separate by type
 Metrics = list(results.columns)[-7:]
 Systems = list(set(results.System))
+Systems.remove("glycolic oscillator") # We don't have this data for most of the algorithms...
 Algorithms = list(set(results.Algorithm))
 Kdims = list(set(results.Kdim))
 seeds = list(set(results["Random Seed"]))
@@ -30,8 +37,8 @@ print("Kdims", Kdims)
 print("Random seeds", seeds)
 
 for metric in Metrics:
-    fig = plt.figure()
     for sys in Systems:
+        fig = plt.figure()
         for alg in Algorithms:
             # Grab the subset of the data that we want
             # First get the rows
@@ -40,13 +47,14 @@ for metric in Metrics:
             # Now get the column
             dataStrings = resRow[metric].to_numpy()
             dataBloc = np.array([str2list(stringData) for stringData in dataStrings])
+            logDataBloc = np.log(dataBloc)
             # Get the mean and standard deviation
-            means = np.mean(dataBloc, axis=0)
-            sds = np.std(dataBloc, axis=0)
+            means = np.mean(logDataBloc, axis=0)
+            sds = np.std(logDataBloc, axis=0)
             # Build the plot of score vs error with error bars
             epochs = [50*i for i in range(len(means))]
             plt.errorbar(epochs, means, yerr=sds, label="sys={0}, alg={1}".format(sys, alg))
         plt.legend()
-        plt.title("Training Epoch vs {0}".format(metric))
-        fig.savefig("Plots/SGD_Metric={0}.jpg".format(metric))
+        plt.title("Training Epoch vs Log {0}\nFor sys={1}".format(metric, sys))
+        fig.savefig("Plots/SGD_Metric={0}_sys={1}.jpg".format(metric, sys))
 
