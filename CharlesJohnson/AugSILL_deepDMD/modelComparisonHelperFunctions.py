@@ -142,7 +142,7 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
     Function to do deepDMD to learn our data.
     """
     # Try this line below and see if it messes anything up...
-    _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     loss = nn.MSELoss()
     loss_val = nn.MSELoss()
     koop_net = feedforward_DDMD_no_input(n_layers, layer_width, dim, dim_added)
