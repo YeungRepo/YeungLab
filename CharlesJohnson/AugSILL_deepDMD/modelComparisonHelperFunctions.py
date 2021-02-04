@@ -10,7 +10,7 @@ from scipy.integrate import odeint
 import numpy as np
 import matplotlib
 from pytorchDeepDMD_Models import feedforward_DDMD_no_input
-from pytorchDictionaryModels import SILL, AugSILL, RBF_Dict
+from pytorchDictionaryModels import SILL, AugSILL, RBF_Dict, hermiteDict, legendreDict
 
 
 # Support functions.
@@ -122,7 +122,7 @@ def getPowersAndNumbers(dim, added_dim):
     leftover = added_dim % dim
     if leftover != 0:
         lenPowers += 1
-    powers = [i+2 for i in range(lenPowers)]
+    powers = [2 + i for i in range(lenPowers)]
     numOfEachPower = [dim] * lenPowers
     if leftover != 0:
         numOfEachPower[-1] = leftover
@@ -136,7 +136,8 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
              n_layers=7, 
              layer_width=20,
              minibatch_size=30,
-             samplerate=250):
+             samplerate=250, 
+             parallel=True):
     """ 
     Function to do deepDMD to learn our data.
     """
@@ -145,6 +146,9 @@ def trainFFDDMD(train_data, verify1_data, verify2_data, verify5_data, test_data,
     loss = nn.MSELoss()
     loss_val = nn.MSELoss()
     koop_net = feedforward_DDMD_no_input(n_layers, layer_width, dim, dim_added)
+    if parallel:
+        koop_net = nn.DataParallel(koop_net)
+        koop_net.to(device)
     opt = torch.optim.Adam(koop_net.parameters(), lr=0.025 , weight_decay=0.0001)
     identity = lambda x, u: x
     koop_net, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5, times = runEpochs(n_epochs, train_data, verify1_data, verify2_data, 
@@ -165,7 +169,8 @@ def trainSGD(train_data, verify1_data, verify2_data, verify5_data, test_data, te
             added_rbfs= 2,
             added_dim = 4,
             minibatch_size=30,
-            samplerate=50):
+            samplerate=50,
+            dictionary="AugSILL"):
     """
     Function to learn our parameters and test them via some variation on SGD.
     @returns: the values koop_net, train_errors1, train_errors2, train_errors5, 
@@ -177,8 +182,17 @@ def trainSGD(train_data, verify1_data, verify2_data, verify5_data, test_data, te
         # use the regular SILL basis
         koop_net = SILL(dim, added_logs)
     elif added_rbfs < 1 and added_logs < 1:
-        # use RBFs for dictionary elements
-        koop_net = RBF_Dict(dim, added_dim)
+        if dictionary == "rbf":
+            # use RBFs for dictionary elements
+            koop_net = RBF_Dict(dim, added_dim)
+        elif dictionary == "hermite":
+            # Use summed 1d hermite polynomials for dictionary elements
+            powers, numOfEachPower = getPowersAndNumbers(dim, added_dim)
+            koop_net = hermiteDict(dim, powers, numOfEachPower)
+        elif dictionary == "legendre":
+            # Use summed 1d legendre polynomials for dictionary elements
+            powers, numOfEachPower = getPowersAndNumbers(dim, added_dim)
+            koop_net = legendreDict(dim, powers, numOfEachPower)
     else:
         # use the augmented SILL basis
         koop_net = AugSILL(dim, added_logs, added_rbfs)
@@ -470,7 +484,7 @@ def train_and_test_FFdeepDMD(training_data, testing_data, dimK):
 # Its inputs should be training data, testing data, and dimension of the final operator
 # it should return time taken, error norm for 1-step predictions.
 
-def train_and_test_SGD(training_data, testing_data, dimK, dict="AugSILL"):
+def train_and_test_SGD(training_data, testing_data, dimK, dictionary="AugSILL"):
     """
     @param training_data: a 3d array of floats, the training system trajectories. 
         The first dimension has all the separate trajectories.
@@ -485,20 +499,21 @@ def train_and_test_SGD(training_data, testing_data, dimK, dict="AugSILL"):
     test, test_verify1, test_verify2, test_verify5 = format_data(testing_data)
     n, _m = np.shape(train)
     dim_added = dimK - n - 1
-    if dict=="AugSILL":
+    if dictionary=="AugSILL":
         if dim_added % 2 == 0:
             n_logs, n_rbfs = dim_added // 2, dim_added // 2
         else:
             n_logs, n_rbfs = dim_added // 2 + 1, dim_added // 2
-    if dict=="SILL":
+    elif dictionary=="SILL":
         n_logs, n_rbfs = dim_added, 0
-    if dict=="Other":
+    else:
         n_logs, n_rbfs = 0, 0
     # run the training with the correct parameters and
     # run the testing as we train
     _koop_net, trainE1, trainE2, trainE5, testE1, testE2, testE5, times = trainSGD(train, train_verify1, train_verify2, 
                                                  train_verify5, test, test_verify1, test_verify2, test_verify5,
-                                                 dim=n, added_logs=n_logs, added_rbfs=n_rbfs, added_dim=dim_added)
+                                                 dim=n, added_logs=n_logs, added_rbfs=n_rbfs, added_dim=dim_added, 
+                                                 dictionary=dictionary)
     # Grab the parameters for the centers and steepnesses from the network, so we can pass them in to 
     # the matching pursuit algorithm
     return [times, trainE1, trainE2, trainE5, testE1, testE2, testE5]
