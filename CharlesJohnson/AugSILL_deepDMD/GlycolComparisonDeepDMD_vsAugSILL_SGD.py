@@ -3,6 +3,10 @@ from dynamicSystems import glycol_oscillator
 import pandas as pd
 from modelComparisonHelperFunctions import train_test_data_flexDim, train_and_test_SGD, train_and_test_FFdeepDMD
 
+import time;
+import cProfile
+pr = cProfile.Profile()
+pr.enable()
 
 system_name = "glycolic oscillator"
 system_train_lims = [0, .5]
@@ -42,3 +46,8 @@ for r_seed in [42, 21, 7, 3]:
 print(results_df)
 results_df.to_excel("AugSILL_SGDvsDDMD_Jan2021.xlsx") 
 results_df.to_csv("AugSILL_SGDvsDDMD_Jan2021.csv") 
+
+print("Total Process Time: " + str( np.float(time.perf_counter()) -np.float(Start_Time)  ))
+pr.disable()
+pr.print_stats(sort='time')
+
