@@ -15,9 +15,7 @@ def str2list(myString):
     return numList
 
 results_most = pd.read_csv("AllSysAllDicSGD_Feb2021.csv") 
-results_hermite = pd.read_csv("HermiteSGD_Feb2021.csv")
-# switch out a column name tht I did wrong.
-results_hermite["Algorithm"] = ["SGD with Hermite Polynomials"] * len(results_hermite["Algorithm"])
+results_hermite = pd.read_csv("HermiteLegendreSGD_Feb2021.csv")
 
 # Put the results together
 results = pd.concat([results_most, results_hermite])
@@ -56,5 +54,5 @@ for metric in Metrics:
             plt.errorbar(epochs, means, yerr=sds, label="sys={0}, alg={1}".format(sys, alg))
         plt.legend()
         plt.title("Training Epoch vs Log {0}\nFor sys={1}".format(metric, sys))
-        fig.savefig("Plots/SGD_Metric={0}_sys={1}.jpg".format(metric, sys))
+        fig.savefig("Plots/SGD_Metric={0}_sys={1}DimKO=5.jpg".format(metric, sys))
 

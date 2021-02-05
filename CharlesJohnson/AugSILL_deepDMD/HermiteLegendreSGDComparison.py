@@ -28,31 +28,25 @@ for sys_ind in range(5):
                                         timesteps=101, 
                                         train_lims=system_train_lims[sys_ind], 
                                         test_lims=system_test_lims[sys_ind])
-        # SGD with AugSILL
-        times, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5 = train_and_test_SGD(train_data, test_data, Kdims[sys_ind], dictionary="AugSILL")
-        new_row = {"System": system_names[sys_ind], "Algorithm": "SGD with AugSILL", "Random Seed": r_seed,
+        
+        # SGD with legendre polynomials
+        times, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5 = train_and_test_SGD(train_data, test_data, Kdims[sys_ind], dictionary="legendre")
+        new_row = {"System": system_names[sys_ind], "Algorithm": "SGD with Legendre Polynomials", "Random Seed": r_seed,
                     "Kdim": Kdims[sys_ind], "Time": times, "Train Error1": tEs1, "Train Error2": tEs2, 
                     "Train Error5": tEs5, "Test Error1": TEs1, "Test Error2": TEs2, 
                     "Test Error5": TEs5}
         results_df = results_df.append(new_row, ignore_index=True)
-        print("SDG with AugSILL done")
-        # SGD with SILL
-        times, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5 = train_and_test_SGD(train_data, test_data, Kdims[sys_ind], dictionary="SILL")
-        new_row = {"System": system_names[sys_ind], "Algorithm": "SGD with SILL", "Random Seed": r_seed,
-                    "Kdim": Kdims[sys_ind], "Time": times, "Train Error1": tEs1, "Train Error2": tEs2, 
-                    "Train Error5": tEs5, "Test Error1": TEs1, "Test Error2": TEs2, 
-                    "Test Error5": TEs5}
-        results_df = results_df.append(new_row, ignore_index=True)
-        print("SDG with SILL done")
-        # SGD with rbfs
-        times, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5 = train_and_test_SGD(train_data, test_data, Kdims[sys_ind], dictionary="rbf")
-        new_row = {"System": system_names[sys_ind], "Algorithm": "SGD with rbfs", "Random Seed": r_seed,
-                    "Kdim": Kdims[sys_ind], "Time": times, "Train Error1": tEs1, "Train Error2": tEs2, 
-                    "Train Error5": tEs5, "Test Error1": TEs1, "Test Error2": TEs2, 
-                    "Test Error5": TEs5}
-        results_df = results_df.append(new_row, ignore_index=True)
-        print("SDG with rbfs done")
+        print("SDG with legendre done")
 
+        # SGD with hermite polynomials
+        times, tEs1, tEs2, tEs5, TEs1, TEs2, TEs5 = train_and_test_SGD(train_data, test_data, Kdims[sys_ind], dictionary="hermite")
+        new_row = {"System": system_names[sys_ind], "Algorithm": "SGD with Hermite Polynomials", "Random Seed": r_seed,
+                    "Kdim": Kdims[sys_ind], "Time": times, "Train Error1": tEs1, "Train Error2": tEs2, 
+                    "Train Error5": tEs5, "Test Error1": TEs1, "Test Error2": TEs2, 
+                    "Test Error5": TEs5}
+        results_df = results_df.append(new_row, ignore_index=True)
+        print("SDG with hermite done")
+        
 print(results_df)
-results_df.to_excel("AllSysAllDicSGD_Feb2021.xlsx") 
-results_df.to_csv("AllSysAllDicSGD_Feb2021.csv") 
+results_df.to_excel("HermiteLegendreSGD_Feb2021.xlsx") 
+results_df.to_csv("HermiteLegendreSGD_Feb2021.csv") 
