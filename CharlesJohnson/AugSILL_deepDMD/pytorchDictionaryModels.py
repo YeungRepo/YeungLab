@@ -8,7 +8,7 @@ from scipy.linalg import logm, expm
 from scipy.integrate import odeint
 import matplotlib
 
-# The first 5 hermite polynomials
+# The first 7 hermite and legendre polynomials
 HERMITE_BASIS = [[1],
                  [0, 1],
                  [-1, 0, 1],
@@ -31,11 +31,10 @@ class legendrePoly(nn.Module):
     def __init__(self, dim, degree):
         super(legendrePoly, self).__init__()
         self.dim = dim
-        try:
-            self.degree = degree
-        except IndexError:
-            print("WARNING: IndexError! Your Degree is too high.")
-        self.basis = LEGENDRE_BASIS[degree]
+        self.degree = 2 + degree % (len(LEGENDRE_BASIS) - 2) # Can't go above the specified number of basis elements, and won't be linear or constant
+        while self.degree >= len(LEGENDRE_BASIS):
+            self.degree -= 1
+        self.basis = LEGENDRE_BASIS[self.degree]
         self.centers = nn.parameter.Parameter(torch.ones(dim))
         self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
         nn.init.uniform_(self.centers, 0, 10)
@@ -63,7 +62,7 @@ class legendrePoly(nn.Module):
         return self.steepnesses.detach().numpy()
 
 
-class legendreDict(nn.Module):
+class legendreDictModel(nn.Module):
     def __init__(self, dim, powers, numOfEachPower):
         """
         The legendre dictionary is biased, state inclusive, and has basis elements that are sums of matching degree 
@@ -71,7 +70,7 @@ class legendreDict(nn.Module):
          powers for the legendre polynomials, numOfEachPower has the integer number of each of the polynomials to be 
          included in the dictionary.
         """
-        super(legendreDict, self).__init__()
+        super(legendreDictModel, self).__init__()
         self.dim = dim
         self.numNonlinear = sum(numOfEachPower)
         polysList = []
@@ -121,11 +120,10 @@ class hermitePoly(nn.Module):
     def __init__(self, dim, degree):
         super(hermitePoly, self).__init__()
         self.dim = dim
-        try:
-            self.degree = degree
-        except IndexError:
-            print("WARNING: IndexError! Your Degree is too high.")
-        self.basis = HERMITE_BASIS[degree]
+        self.degree = 2 + degree % (len(HERMITE_BASIS) - 2) # Can't go above the specified number of basis elements, and won't be linear or constant
+        while self.degree >= len(HERMITE_BASIS):
+            self.degree -= 1
+        self.basis = HERMITE_BASIS[self.degree]
         self.centers = nn.parameter.Parameter(torch.ones(dim))
         self.steepnesses = nn.parameter.Parameter(torch.ones(dim))
         nn.init.uniform_(self.centers, 0, 10)
@@ -153,7 +151,7 @@ class hermitePoly(nn.Module):
         return self.steepnesses.detach().numpy()
 
 
-class hermiteDict(nn.Module):
+class hermiteDictModel(nn.Module):
     def __init__(self, dim, powers, numOfEachPower):
         """
         The hermite dictionary is biased, state inclusive, and has basis elements that are sums of matching degree 
@@ -161,7 +159,7 @@ class hermiteDict(nn.Module):
          powers for the hermite polynomials, numOfEachPower has the integer number of each of the polynomials to be 
          included in the dictionary.
         """
-        super(hermiteDict, self).__init__()
+        super(hermiteDictModel, self).__init__()
         self.dim = dim
         self.numNonlinear = sum(numOfEachPower)
         polysList = []
@@ -234,14 +232,14 @@ class rbf(nn.Module):
         return self.steepnesses.detach().numpy()
     
     
-class RBF_Dict(nn.Module):
+class RBF_DictModel(nn.Module):
     def __init__(self, dim, numRBF):
         """
         The polyoid dictionary is biased, state inclusive, and has polyoid basis elements.
         The variables, powers and numOfEachPower are lists of the same length. Powers has the powers for the polyoids, 
            numOfEachPower has the integer number of each of the polyoids to be included in the dictionary.
         """
-        super(RBF_Dict, self).__init__()
+        super(RBF_DictModel, self).__init__()
         self.dim = dim
         self.numRBF = numRBF
         self.RBFs = nn.ModuleList([rbf(dim) for i in range(numRBF)])
@@ -288,7 +286,7 @@ class shiftedPolyoid(nn.Module):
     hyperbolic paraboloid.
     """
     def __init__(self, dim, power):
-        super(shiftedPolyoid, self).__init__()
+        super(shiftedPolyoidModel, self).__init__()
         self.dim = dim
         self.power = power
         self.centers = nn.parameter.Parameter(torch.ones(dim))
@@ -310,14 +308,14 @@ class shiftedPolyoid(nn.Module):
         return self.steepnesses.detach().numpy()
     
     
-class polyoidDict(nn.Module):
+class polyoidDictModel(nn.Module):
     def __init__(self, dim, powers, numOfEachPower):
         """
         The polyoid dictionary is biased, state inclusive, and has polyoid basis elements.
         The variables, powers and numOfEachPower are lists of the same length. Powers has the powers for the polyoids, 
            numOfEachPower has the integer number of each of the polyoids to be included in the dictionary.
         """
-        super(polyoidDict, self).__init__()
+        super(polyoidDictModel, self).__init__()
         self.dim = dim
         self.numNonlinear = sum(numOfEachPower)
         polysList = []
@@ -412,9 +410,9 @@ class conjRBF(nn.Module):
     def get_steepnesses(self):
         return self.steepnesses.detach().numpy()
 
-class AugSILL(nn.Module):
+class AugSILL_Model(nn.Module):
     def __init__(self, dim, numLog, numRBF):
-        super(AugSILL, self).__init__()
+        super(AugSILL_Model, self).__init__()
         self.dim = dim
         self.numLog = numLog
         self.numRBF = numRBF
@@ -471,9 +469,9 @@ class AugSILL(nn.Module):
             centers.append(rbf.get_steepnesses())
         return centers
     
-class SILL(nn.Module):
+class SILL_Model(nn.Module):
     def __init__(self, dim, numLog):
-        super(SILL, self).__init__()
+        super(SILL_Model, self).__init__()
         self.dim = dim
         self.numLog = numLog
         self.logs = nn.ModuleList([conjLog(dim) for i in range(numLog)])

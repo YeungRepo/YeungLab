@@ -1,3 +1,8 @@
+# This file runs two different models for learning a Koopman representation using SGD.  
+# Each of these models uses a different orthogonal polynomial basis.
+# It then saves two representations, a csv file and an xls file, of diagnostic data one could use to compare the models.  
+# They are tested on 5 nonlinear systems.
+# Written by Charles Johnson in 2021
 import numpy as np
 from dynamicSystems import *
 import pandas as pd
@@ -11,17 +16,19 @@ system_names = ["vdp", "toggle", "lv", "duffing", "glycolic oscillator"]
 system_train_lims = [[0, .5], [0, .5], [1, 5], [0, .5], [0, .5]]
 system_test_lims = [[0, 1], [0, 1], [1, 9], [0, 1], [0, 1]]
 system_dims = [2, 2, 2, 2, 7]
-Kdims = [5, 5, 5, 5, 10]#[10, 10, 10, 10, 30]
+Kdims = [10, 10, 10, 10, 30]#[5, 5, 5, 5, 10]
 
 results_df = pd.DataFrame(columns=["System", "Algorithm", "Random Seed", "Kdim", "Time", "Train Error1",
                                     "Train Error2", "Train Error5", "Test Error1", "Test Error2", 
                                     "Test Error5"])
 
+# Start running the experiments here
 for sys_ind in range(5):
     print("sys_ind", sys_ind)
     for r_seed in [42, 21, 7, 3]:
         print("r_seed", r_seed)
         np.random.seed(r_seed)
+        # Collect the data for the training and testing.
         train_data, test_data = train_test_data_flexDim(systems[sys_ind], dim=system_dims[sys_ind], 
                                         nTrain=10, nTest=5,
                                         timeframe=5, 
@@ -48,5 +55,5 @@ for sys_ind in range(5):
         print("SDG with hermite done")
         
 print(results_df)
-results_df.to_excel("HermiteLegendreSGD_Feb2021.xlsx") 
-results_df.to_csv("HermiteLegendreSGD_Feb2021.csv") 
+results_df.to_excel("HermiteLegendreSGD10D_Feb2021.xlsx") 
+results_df.to_csv("HermiteLegendreSGD10D_Feb2021.csv") 

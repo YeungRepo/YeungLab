@@ -2,6 +2,14 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
+# Set up some plotting settings
+import matplotlib
+font1 = {"family": 'normal', "weight": "bold", "size": 15}
+font2 = {"family": 'normal', "weight": "bold", "size": 9}
+matplotlib.rc('font', **font1)
+
+DIM = 20 # Sets which data is used and the names of the output plots
+dimStr = str(DIM)
 
 # Helper functions:
 def str2list(myString):
@@ -14,17 +22,22 @@ def str2list(myString):
     numList = [float(num) for num in myList]
     return numList
 
-results_most = pd.read_csv("AllSysAllDicSGD_Feb2021.csv") 
-results_hermite = pd.read_csv("HermiteLegendreSGD_Feb2021.csv")
+results = pd.read_csv("AllSysAllDicSGD{0}D_Feb2021.csv".format(dimStr)) 
+"""results_most = pd.read_csv("AllSysAllDicSGD{0}D_Feb2021.csv".format(dimStr)) 
+results_hermite = pd.read_csv("HermiteLegendreSGD{0}D_Feb2021.csv".format(dimStr))
 
 # Put the results together
 results = pd.concat([results_most, results_hermite])
+"""
+# Get baseline
+dmdResults = pd.read_csv("DMD_Feb2021.csv")
+
 
 # Separate by type
 Metrics = list(results.columns)[-7:]
-Systems = list(set(results.System))
-Systems.remove("glycolic oscillator") # We don't have this data for most of the algorithms...
-Algorithms = list(set(results.Algorithm))
+Systems = list(set(results.System)) 
+#ystems.remove("glycolic oscillator") # We don't have this data for most of the algorithms...
+Algorithms = ["SGD with SILL", "SGD with rbfs", "SGD with Legendre Polynomials", "SGD with Hermite Polynomials", "SGD with AugSILL"]
 Kdims = list(set(results.Kdim))
 seeds = list(set(results["Random Seed"]))
 
@@ -37,6 +50,7 @@ print("Random seeds", seeds)
 for metric in Metrics:
     for sys in Systems:
         fig = plt.figure()
+        ax = plt.subplot(111)
         for alg in Algorithms:
             # Grab the subset of the data that we want
             # First get the rows
@@ -51,8 +65,27 @@ for metric in Metrics:
             sds = np.std(logDataBloc, axis=0)
             # Build the plot of score vs error with error bars
             epochs = [50*i for i in range(len(means))]
-            plt.errorbar(epochs, means, yerr=sds, label="sys={0}, alg={1}".format(sys, alg))
-        plt.legend()
-        plt.title("Training Epoch vs Log {0}\nFor sys={1}".format(metric, sys))
-        fig.savefig("Plots/SGD_Metric={0}_sys={1}DimKO=5.jpg".format(metric, sys))
+            ax.errorbar(epochs, means, yerr=sds, label="sys={0}, alg={1}".format(sys, alg))
+        # Put in the range of results for standard DMD
+        dmd = dmdResults.loc[dmdResults["System"]==sys]
+        dmdVals = dmd[metric].to_numpy()
+        logDmdVals = np.log(dmdVals)
+        dmdMean = np.mean(logDmdVals)
+        dmdStd = np.std(logDmdVals)
+        ax.plot(epochs, dmdMean * np.ones(len(epochs)), "b", alpha=0.5, label="DMD mean Performance")
+        ax.plot(epochs, (dmdMean + dmdStd) * np.ones(len(epochs)), "b--", alpha=0.5)
+        ax.plot(epochs, (dmdMean - dmdStd) * np.ones(len(epochs)), "b--", alpha=0.5)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        # Standardize the y-axis
+        plt.ylim(-11, 10)
+        if metric == "Time":
+            matplotlib.rc('font', **font2)
+            plt.legend(loc='center')
+            matplotlib.rc('font', **font1)
+        if metric == "Test Error5":
+            plt.title("Training Epoch vs 5-step Log Test Error\n for system={0}".format(sys))
+        else:
+            plt.title("Training Epoch vs Log {0}\nFor sys={1}".format(metric, sys))
+        fig.savefig("Plots/SGD_Metric={0}_sys={1}DimK={2}.jpg".format(metric, sys, dimStr))
 
